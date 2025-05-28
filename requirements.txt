@@ -1,4 +1,1 @@
-python-telegram-bot==20.3
-supabase==1.0.3
-python-dotenv
-pytelegrambotapi
+pip install supabase --upgrade
