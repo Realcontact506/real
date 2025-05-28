@@ -11,6 +11,7 @@ supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # Bot Token
 BOT_TOKEN = "7924121952:AAGs0lL1UbSOQ7UUQ1B2XbFPUrzsyNhscSs"
+
 # Logging
 logging.basicConfig(level=logging.INFO)
 user_states = {}
@@ -26,9 +27,9 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not os.path.exists("filedownloads"):
         os.makedirs("filedownloads")
     file_path = f"filedownloads/{user_id}.jpg"
-    await photo_file.download(file_path)  # download_to_drive -> download
+    await photo_file.download(file_path)
 
-user_states[user_id] = {"step": "waiting_for_utr", "screenshot_path": file_path}
+    user_states[user_id] = {"step": "waiting_for_utr", "screenshot_path": file_path}
     await update.message.reply_text("ధన్యవాదాలు. ఇప్పుడు మీ UTR నెంబర్ పంపండి.")
 
 # Handle UTR and Save to Supabase
@@ -47,7 +48,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "contact_number": "",
         }).execute()
 
-user_states.pop(user_id)
+        user_states.pop(user_id)
         await update.message.reply_text("మీ UTR సేవ్ అయింది. త్వరలో వెరిఫై చేసి మేము మీకు నెంబర్ పంపుతాం.")
     else:
         result = supabase.table("contacts").select("*").eq("user_id", user_id).eq("status", "approved").execute()
@@ -58,7 +59,6 @@ user_states.pop(user_id)
             await update.message.reply_text("మీ డేటా ఇంకా వెరిఫై కాలేదు. దయచేసి కొద్దిసేపటికి మళ్లీ చెక్ చేయండి.")
 
 # Run bot
-async def main():
 async def main():
     app = ApplicationBuilder().token(BOT_TOKEN).build()
     app.add_handler(CommandHandler("start", start))
