@@ -1,2 +1,4 @@
-python-telegram-bot==20.3
-supabase
+supabase==1.0.3
+httpx==0.27.0
+python-dotenv
+pytelegrambotapi
