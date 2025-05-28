@@ -28,11 +28,11 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     print("📸 Photo received")  # Debug message
 
-    if not os.path.exists("filedownloads"):
-        os.makedirs("filedownloads")
+    if not os.path.exists("downloads"):
+        os.makedirs("downloads")
 
     file_path = f"filedownloads/{user_id}.jpg"
-    await photo_file.download_to_drive(file_path)  # ✅ Correct method
+    await photo_file.download(file_path)  # ✅ Correct method
 
     user_states[user_id] = {"step": "waiting_for_utr", "screenshot_path": file_path}
     await update.message.reply_text("ధన్యవాదాలు. ఇప్పుడు మీ UTR నెంబర్ పంపండి.")
