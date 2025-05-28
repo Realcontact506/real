@@ -9,8 +9,8 @@ SUPABASE_URL = "https://skorflvwergngsupnlzu.supabase.co"
 SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNrb3JmbHZ3ZXJnbmdzdXBubHp1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDg0MzM0ODEsImV4cCI6MjA2NDAwOTQ4MX0.1KYYRjph_8ZH2BJ3vSVSJuuOdnB18VBO37iDrJ0We54"
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-# Bot Token
-BOT_TOKEN = "7924121952:AAGs0lL1UbSOQ7UUQ1B2XbFPUrzsyNhscSs"
+# Bot Token - Changed here
+BOT_TOKEN = "8118983802:AAFp3D8zgxjgJHDndAQRYEzlOmsC4mpWnGE"
 
 # Logging
 logging.basicConfig(level=logging.INFO)
