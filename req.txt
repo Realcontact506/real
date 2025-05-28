@@ -1,1 +1,5 @@
-echo python-telegram-bot==20.8 > requirements.txt && echo supabase >> requirements.txt
+python-telegram-bot==20.3
+supabase==1.0.3
+httpx==0.24.1
+python-dotenv
+pytelegrambotapi
