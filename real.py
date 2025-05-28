@@ -18,7 +18,7 @@ user_states = {}
 
 # /start command
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("ఫోటో స్క్రీన్‌షాట్ ని పంపండి. దానికి తర్వాత UTR నెంబర్ అడుగుతాను.")
+    await update.message.reply_text("Meru vesina payment  screenshot petandi.")
 
 # Photo handler
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
