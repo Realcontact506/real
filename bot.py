@@ -6,7 +6,7 @@ from supabase import create_client
 
 # Supabase credentials
 SUPABASE_URL = "https://skorflvwergngsupnlzu.supabase.co"
-SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."  # మీ పూర్తి కీ ఇక్కడ ఉంచండి
+SUPABASE_KEY = "మీ పూర్తి సరిగా ఉన్న anon key ఇక్కడ paste చేయండి"
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # Bot Token
