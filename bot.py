@@ -1,13 +1,5 @@
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import (
-    Updater,
-    CommandHandler,
-    MessageHandler,
-    Filters,
-    ConversationHandler,
-    CallbackQueryHandler,
-    CallbackContext,
-)
+from telegram import Update
+from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, ConversationHandler, CallbackContext
 import sqlite3
 
 # Bot Token & Admin ID
@@ -40,7 +32,6 @@ def init_db():
 # States
 ASK_SCREENSHOT, ASK_UTR, ASK_NAME, ASK_WHATSAPP = range(4)
 
-# /start -> automatic DB add
 def start(update: Update, context: CallbackContext):
     user = update.message.from_user
     chat_id = update.message.chat_id
@@ -48,7 +39,6 @@ def start(update: Update, context: CallbackContext):
     first_name = user.first_name or ""
     last_name = user.last_name or ""
 
-    # Save user to DB automatically
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
     c.execute(
@@ -61,18 +51,15 @@ def start(update: Update, context: CallbackContext):
     update.message.reply_text("💎 Send your payment screenshot 📸")
     return ASK_SCREENSHOT
 
-# Screenshot
 def ask_utr(update: Update, context: CallbackContext):
     if not update.message.photo:
         update.message.reply_text("❌ Please send your payment screenshot.")
         return ASK_SCREENSHOT
 
     context.user_data["screenshot"] = update.message.photo[-1].file_id
-    context.user_data["chat_id"] = update.message.chat_id
     update.message.reply_text("💰 Enter your 12-digit UTR number")
     return ASK_UTR
 
-# UTR
 def ask_name(update: Update, context: CallbackContext):
     utr = update.message.text.strip()
     if not utr.isdigit() or len(utr) != 12:
@@ -89,4 +76,63 @@ def ask_name(update: Update, context: CallbackContext):
     conn.close()
 
     context.user_data["utr"] = utr
-    update.message.re
+    update.message.reply_text("📝 Enter your full name")
+    return ASK_NAME
+
+def ask_whatsapp(update: Update, context: CallbackContext):
+    name = update.message.text.strip()
+    context.user_data["name"] = name
+    update.message.reply_text("📱 Enter your WhatsApp number")
+    return ASK_WHATSAPP
+
+def save_data(update: Update, context: CallbackContext):
+    whatsapp = update.message.text.strip()
+    context.user_data["whatsapp"] = whatsapp
+
+    chat_id = update.message.chat_id
+    conn = sqlite3.connect(DB_FILE)
+    c = conn.cursor()
+    c.execute(
+        "UPDATE users SET utr=?, name=?, whatsapp=?, screenshot=?, status=? WHERE chat_id=?",
+        (
+            context.user_data["utr"],
+            context.user_data["name"],
+            context.user_data["whatsapp"],
+            context.user_data["screenshot"],
+            "pending",
+            chat_id
+        )
+    )
+    conn.commit()
+    conn.close()
+
+    update.message.reply_text("✅ Your details are saved. Admin will contact you soon.")
+    return ConversationHandler.END
+
+def cancel(update: Update, context: CallbackContext):
+    update.message.reply_text("❌ Operation cancelled.")
+    return ConversationHandler.END
+
+def main():
+    init_db()
+    updater = Updater(BOT_TOKEN, use_context=True)
+    dp = updater.dispatcher
+
+    conv_handler = ConversationHandler(
+        entry_points=[CommandHandler('start', start)],
+        states={
+            ASK_SCREENSHOT: [MessageHandler(Filters.photo, ask_utr)],
+            ASK_UTR: [MessageHandler(Filters.text & ~Filters.command, ask_name)],
+            ASK_NAME: [MessageHandler(Filters.text & ~Filters.command, ask_whatsapp)],
+            ASK_WHATSAPP: [MessageHandler(Filters.text & ~Filters.command, save_data)],
+        },
+        fallbacks=[CommandHandler('cancel', cancel)],
+    )
+
+    dp.add_handler(conv_handler)
+
+    updater.start_polling()
+    updater.idle()
+
+if __name__ == '__main__':
+    main()
