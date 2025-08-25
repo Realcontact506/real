@@ -1,5 +1,12 @@
 from telegram import Update
-from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, ConversationHandler, CallbackContext
+from telegram.ext import (
+    ApplicationBuilder,
+    CommandHandler,
+    MessageHandler,
+    ConversationHandler,
+    ContextTypes,
+    filters
+)
 import sqlite3
 
 # Bot Token & Admin ID
@@ -32,7 +39,8 @@ def init_db():
 # States
 ASK_SCREENSHOT, ASK_UTR, ASK_NAME, ASK_WHATSAPP = range(4)
 
-def start(update: Update, context: CallbackContext):
+# /start -> automatic DB add
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
     chat_id = update.message.chat_id
     username = user.username or ""
@@ -48,44 +56,48 @@ def start(update: Update, context: CallbackContext):
     conn.commit()
     conn.close()
 
-    update.message.reply_text("💎 Send your payment screenshot 📸")
+    await update.message.reply_text("💎 Send your payment screenshot 📸")
     return ASK_SCREENSHOT
 
-def ask_utr(update: Update, context: CallbackContext):
+# Screenshot handler
+async def ask_utr(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message.photo:
-        update.message.reply_text("❌ Please send your payment screenshot.")
+        await update.message.reply_text("❌ Please send your payment screenshot.")
         return ASK_SCREENSHOT
 
     context.user_data["screenshot"] = update.message.photo[-1].file_id
-    update.message.reply_text("💰 Enter your 12-digit UTR number")
+    await update.message.reply_text("💰 Enter your 12-digit UTR number")
     return ASK_UTR
 
-def ask_name(update: Update, context: CallbackContext):
+# UTR handler
+async def ask_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
     utr = update.message.text.strip()
     if not utr.isdigit() or len(utr) != 12:
-        update.message.reply_text("❌ Invalid UTR number. Must be 12 digits.")
+        await update.message.reply_text("❌ Invalid UTR number. Must be 12 digits.")
         return ASK_UTR
 
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
     c.execute("SELECT * FROM users WHERE utr=?", (utr,))
     if c.fetchone():
-        update.message.reply_text("❌ This UTR number is already submitted. Use /start again.")
+        await update.message.reply_text("❌ This UTR number is already submitted. Use /start again.")
         conn.close()
         return ConversationHandler.END
     conn.close()
 
     context.user_data["utr"] = utr
-    update.message.reply_text("📝 Enter your full name")
+    await update.message.reply_text("📝 Enter your full name")
     return ASK_NAME
 
-def ask_whatsapp(update: Update, context: CallbackContext):
+# Name handler
+async def ask_whatsapp(update: Update, context: ContextTypes.DEFAULT_TYPE):
     name = update.message.text.strip()
     context.user_data["name"] = name
-    update.message.reply_text("📱 Enter your WhatsApp number")
+    await update.message.reply_text("📱 Enter your WhatsApp number")
     return ASK_WHATSAPP
 
-def save_data(update: Update, context: CallbackContext):
+# WhatsApp handler
+async def save_data(update: Update, context: ContextTypes.DEFAULT_TYPE):
     whatsapp = update.message.text.strip()
     context.user_data["whatsapp"] = whatsapp
 
@@ -106,33 +118,33 @@ def save_data(update: Update, context: CallbackContext):
     conn.commit()
     conn.close()
 
-    update.message.reply_text("✅ Your details are saved. Admin will contact you soon.")
+    await update.message.reply_text("✅ Your details are saved. Admin will contact you soon.")
     return ConversationHandler.END
 
-def cancel(update: Update, context: CallbackContext):
-    update.message.reply_text("❌ Operation cancelled.")
+# Cancel handler
+async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("❌ Operation cancelled.")
     return ConversationHandler.END
 
+# Main function
 def main():
     init_db()
-    updater = Updater(BOT_TOKEN, use_context=True)
-    dp = updater.dispatcher
+    app = ApplicationBuilder().token(BOT_TOKEN).build()
 
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler('start', start)],
         states={
-            ASK_SCREENSHOT: [MessageHandler(Filters.photo, ask_utr)],
-            ASK_UTR: [MessageHandler(Filters.text & ~Filters.command, ask_name)],
-            ASK_NAME: [MessageHandler(Filters.text & ~Filters.command, ask_whatsapp)],
-            ASK_WHATSAPP: [MessageHandler(Filters.text & ~Filters.command, save_data)],
+            ASK_SCREENSHOT: [MessageHandler(filters.PHOTO, ask_utr)],
+            ASK_UTR: [MessageHandler(filters.TEXT & ~filters.COMMAND, ask_name)],
+            ASK_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, ask_whatsapp)],
+            ASK_WHATSAPP: [MessageHandler(filters.TEXT & ~filters.COMMAND, save_data)],
         },
         fallbacks=[CommandHandler('cancel', cancel)],
     )
 
-    dp.add_handler(conv_handler)
+    app.add_handler(conv_handler)
 
-    updater.start_polling()
-    updater.idle()
+    app.run_polling()
 
 if __name__ == '__main__':
     main()
