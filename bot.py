@@ -1,125 +1,128 @@
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import (
+    Update,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup
+)
 from telegram.ext import (
-    Updater,
+    ApplicationBuilder,
     CommandHandler,
     MessageHandler,
-    Filters,
     ConversationHandler,
     CallbackQueryHandler,
-    CallbackContext,
+    ContextTypes,
+    filters
 )
 import sqlite3
+import logging
 
-# Bot Token & Admin ID
-BOT_TOKEN = "8262325261:AAE9AZxLY_GEPN-Bqn32iqofdoQ5xtfSP9A"
-ADMIN_ID = 8190068599
+# =========================
+# BOT SETTINGS
+# =========================
+TOKEN = "8262325261:AAE9AZxLY_GEPN-Bqn32iqofdoQ5xtfSP9A"
+ADMIN_ID = 8190068599   # admin chat id
 
-# Database setup
-DB_FILE = "bot_database.sqlite"
+# =========================
+# LOGGING
+# =========================
+logging.basicConfig(
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    level=logging.INFO
+)
 
-def init_db():
-    conn = sqlite3.connect(DB_FILE)
-    c = conn.cursor()
-    c.execute('''
-        CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            chat_id INTEGER UNIQUE,
-            username TEXT,
-            first_name TEXT,
-            last_name TEXT,
-            utr TEXT UNIQUE,
-            name TEXT,
-            whatsapp TEXT,
-            screenshot TEXT,
-            status TEXT
-        )
-    ''')
-    conn.commit()
-    conn.close()
+# =========================
+# DATABASE CREATE
+# =========================
+DB_FILE = "users.db"
+conn = sqlite3.connect(DB_FILE)
+c = conn.cursor()
+c.execute("""CREATE TABLE IF NOT EXISTS users (
+    chat_id INTEGER PRIMARY KEY,
+    utr TEXT,
+    name TEXT,
+    whatsapp TEXT,
+    screenshot TEXT,
+    status TEXT
+)""")
+conn.commit()
+conn.close()
 
-# States
+# =========================
+# STATES
+# =========================
 ASK_SCREENSHOT, ASK_UTR, ASK_NAME, ASK_WHATSAPP = range(4)
 
-# /start -> automatic DB add
-def start(update: Update, context: CallbackContext):
-    user = update.message.from_user
-    chat_id = update.message.chat_id
-    username = user.username or ""
-    first_name = user.first_name or ""
-    last_name = user.last_name or ""
-
-    # Save user to DB automatically
-    conn = sqlite3.connect(DB_FILE)
-    c = conn.cursor()
-    c.execute(
-        "INSERT OR IGNORE INTO users (chat_id, username, first_name, last_name, status) VALUES (?, ?, ?, ?, ?)",
-        (chat_id, username, first_name, last_name, "pending")
-    )
-    conn.commit()
-    conn.close()
-
-    update.message.reply_text("💎 Send your payment screenshot 📸")
+# =========================
+# START COMMAND
+# =========================
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("🙏 స్వాగతం!\n\nదయచేసి ముందుగా మీ *పేమెంట్ స్క్రీన్‌షాట్* పంపండి.")
     return ASK_SCREENSHOT
 
-# Screenshot
-def ask_utr(update: Update, context: CallbackContext):
+# =========================
+# STEP 1 - SCREENSHOT
+# =========================
+async def ask_screenshot(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message.photo:
-        update.message.reply_text("❌ Please send your payment screenshot.")
+        await update.message.reply_text("❌ దయచేసి *స్క్రీన్‌షాట్ ఫోటో* మాత్రమే పంపండి.")
         return ASK_SCREENSHOT
 
-    context.user_data["screenshot"] = update.message.photo[-1].file_id
+    file_id = update.message.photo[-1].file_id
+    context.user_data["screenshot"] = file_id
     context.user_data["chat_id"] = update.message.chat_id
-    update.message.reply_text("💰 Enter your 12-digit UTR number")
+    context.user_data["username"] = update.message.from_user.username
+    context.user_data["firstname"] = update.message.from_user.first_name
+
+    await update.message.reply_text("✅ Screenshot వచ్చింది.\n\nఇప్పుడు మీ *12 అంకెల UTR నంబర్* ఇవ్వండి.")
     return ASK_UTR
 
-# UTR
-def ask_name(update: Update, context: CallbackContext):
+# =========================
+# STEP 2 - UTR
+# =========================
+async def ask_utr(update: Update, context: ContextTypes.DEFAULT_TYPE):
     utr = update.message.text.strip()
     if not utr.isdigit() or len(utr) != 12:
-        update.message.reply_text("❌ Invalid UTR number. Must be 12 digits.")
+        await update.message.reply_text("❌ సరైన *12 అంకెల UTR నంబర్* ఇవ్వండి.")
         return ASK_UTR
 
-    conn = sqlite3.connect(DB_FILE)
-    c = conn.cursor()
-    c.execute("SELECT * FROM users WHERE utr=?", (utr,))
-    if c.fetchone():
-        update.message.reply_text("❌ This UTR number is already submitted. Use /start again.")
-        conn.close()
-        return ConversationHandler.END
-    conn.close()
-
     context.user_data["utr"] = utr
-    update.message.reply_text("📝 Enter your full name")
+    await update.message.reply_text("✅ UTR వచ్చింది.\n\nఇప్పుడు మీ *బ్యాంక్ హోల్డర్ పేరు* ఇవ్వండి.")
     return ASK_NAME
 
-# Name
-def ask_whatsapp(update: Update, context: CallbackContext):
+# =========================
+# STEP 3 - NAME
+# =========================
+async def ask_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
     name = update.message.text.strip()
     context.user_data["name"] = name
-    update.message.reply_text("📱 Enter your WhatsApp number")
+
+    await update.message.reply_text("✅ పేరు వచ్చింది.\n\nఇప్పుడు మీ *10 అంకెల WhatsApp నంబర్* ఇవ్వండి.")
     return ASK_WHATSAPP
 
-# Whatsapp
-def save_user(update: Update, context: CallbackContext):
+# =========================
+# STEP 4 - WHATSAPP
+# =========================
+async def ask_whatsapp(update: Update, context: ContextTypes.DEFAULT_TYPE):
     whatsapp = update.message.text.strip()
+    if not whatsapp.isdigit() or len(whatsapp) != 10:
+        await update.message.reply_text("❌ *10 అంకెల WhatsApp నంబర్* ఇవ్వండి.")
+        return ASK_WHATSAPP
+
     context.user_data["whatsapp"] = whatsapp
 
+    # డేటాబేస్ లో సేవ్ చేయడం
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
-    c.execute(
-        "UPDATE users SET utr=?, name=?, whatsapp=?, screenshot=? WHERE chat_id=?",
-        (
-            context.user_data["utr"],
-            context.user_data["name"],
-            whatsapp,
-            context.user_data["screenshot"],
-            context.user_data["chat_id"],
-        )
-    )
+    c.execute("INSERT OR REPLACE INTO users (chat_id, utr, name, whatsapp, screenshot, status) VALUES (?,?,?,?,?,?)",
+              (context.user_data["chat_id"],
+               context.user_data["utr"],
+               context.user_data["name"],
+               whatsapp,
+               context.user_data["screenshot"],
+               "pending"))
     conn.commit()
     conn.close()
 
-    # Send to admin for approval
+    # ADMIN కి పంపడం
     keyboard = [
         [
             InlineKeyboardButton("✅ Approve", callback_data=f"approve_{context.user_data['chat_id']}"),
@@ -128,79 +131,68 @@ def save_user(update: Update, context: CallbackContext):
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
-    context.bot.send_message(
+    username = context.user_data.get("username", "N/A")
+    firstname = context.user_data.get("firstname", "N/A")
+
+    await context.bot.send_photo(
         chat_id=ADMIN_ID,
-        text=f"🔔 New Submission:\n\n👤 Name: {context.user_data['name']}\n💰 UTR: {context.user_data['utr']}\n📱 WhatsApp: {whatsapp}",
+        photo=context.user_data["screenshot"],
+        caption=(
+            f"🔔 కొత్త సబ్మిషన్ వచ్చింది:\n\n"
+            f"👤 పేరు: {context.user_data['name']}\n"
+            f"💰 UTR: {context.user_data['utr']}\n"
+            f"🏦 బ్యాంక్ హోల్డర్: {context.user_data['name']}\n"
+            f"📱 WhatsApp: {whatsapp}\n\n"
+            f"📌 User: @{username}\n"
+            f"🆔 Chat ID: {context.user_data['chat_id']}\n"
+            f"👤 First Name: {firstname}"
+        ),
         reply_markup=reply_markup
     )
 
-    update.message.reply_text("✅ Your submission is sent for verification. Please wait.")
+    await update.message.reply_text("✅ మీ సబ్మిషన్ అడ్మిన్ కి పంపబడింది.\n⏳ వెరిఫై అయిన తరువాత మీకు మెసేజ్ వస్తుంది.")
     return ConversationHandler.END
 
-# Approve / Reject
-def button_handler(update: Update, context: CallbackContext):
+# =========================
+# ADMIN APPROVE / REJECT
+# =========================
+async def button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    query.answer()
+    await query.answer()
+    data = query.data
 
-    data = query.data.split("_")
-    action, chat_id = data[0], int(data[1])
+    if data.startswith("approve_"):
+        chat_id = int(data.split("_")[1])
+        await context.bot.send_message(chat_id, "✅ మీ సబ్మిషన్ *అప్రూవ్* చేయబడింది!")
+        await query.edit_message_caption(query.message.caption + "\n\n✅ Approved by Admin")
 
-    if action == "approve":
-        conn = sqlite3.connect(DB_FILE)
-        c = conn.cursor()
-        c.execute("UPDATE users SET status=? WHERE chat_id=?", ("approved", chat_id))
-        conn.commit()
-        conn.close()
+    elif data.startswith("reject_"):
+        chat_id = int(data.split("_")[1])
+        await context.bot.send_message(chat_id, "❌ మీ సబ్మిషన్ *రిజెక్ట్* చేయబడింది.")
+        await query.edit_message_caption(query.message.caption + "\n\n❌ Rejected by Admin")
 
-        # SUCCESS MESSAGE (Updated as per your request)
-        context.bot.send_message(
-            chat_id=chat_id,
-            text=(
-                "🎉 Your payment is verified successfully! ✅\n\n"
-                "📞 Here is your contact: Lahari\n"
-                "🔗 https://wa.link/powhwj\n\n"
-                "⚠️ Number buy chesaru anni vallaki asalu chapadhu meru ❌"
-            )
-        )
-        query.edit_message_text("✅ User approved successfully!")
-
-    elif action == "reject":
-        conn = sqlite3.connect(DB_FILE)
-        c = conn.cursor()
-        c.execute("UPDATE users SET status=? WHERE chat_id=?", ("rejected", chat_id))
-        conn.commit()
-        conn.close()
-
-        context.bot.send_message(chat_id=chat_id, text="❌ Your payment could not be verified. Contact support.")
-        query.edit_message_text("❌ User rejected.")
-
-# Cancel
-def cancel(update: Update, context: CallbackContext):
-    update.message.reply_text("❌ Process cancelled.")
-    return ConversationHandler.END
-
+# =========================
+# MAIN
+# =========================
 def main():
-    init_db()
-    updater = Updater(BOT_TOKEN, use_context=True)
-    dp = updater.dispatcher
+    app = ApplicationBuilder().token(TOKEN).build()
 
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler("start", start)],
         states={
-            ASK_SCREENSHOT: [MessageHandler(Filters.photo & ~Filters.command, ask_utr)],
-            ASK_UTR: [MessageHandler(Filters.text & ~Filters.command, ask_name)],
-            ASK_NAME: [MessageHandler(Filters.text & ~Filters.command, ask_whatsapp)],
-            ASK_WHATSAPP: [MessageHandler(Filters.text & ~Filters.command, save_user)],
+            ASK_SCREENSHOT: [MessageHandler(filters.PHOTO, ask_screenshot)],
+            ASK_UTR: [MessageHandler(filters.TEXT & ~filters.COMMAND, ask_utr)],
+            ASK_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, ask_name)],
+            ASK_WHATSAPP: [MessageHandler(filters.TEXT & ~filters.COMMAND, ask_whatsapp)],
         },
-        fallbacks=[CommandHandler("cancel", cancel)],
+        fallbacks=[]
     )
 
-    dp.add_handler(conv_handler)
-    dp.add_handler(CallbackQueryHandler(button_handler))
+    app.add_handler(conv_handler)
+    app.add_handler(CallbackQueryHandler(button))
 
-    updater.start_polling()
     print("🤖 Bot is running...")
-    updater.idle()
+    app.run_polling()
 
 if __name__ == "__main__":
     main()
